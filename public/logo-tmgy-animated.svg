@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none">
+  <circle cx="256" cy="256" r="256" fill="#333333">
+    <animate attributeName="r" values="240;256;240" dur="4s" repeatCount="indefinite" />
+  </circle>
+  
+  <g>
+    <path d="M180 120L310 170V220L180 170V120Z" fill="#00BFFF">
+      <animate attributeName="fill" values="#00BFFF;#40C0FF;#00BFFF" dur="3s" repeatCount="indefinite" />
+    </path>
+    <path d="M255 180L310 220V320L255 280V180Z" fill="#00BFFF">
+      <animate attributeName="fill" values="#00BFFF;#40C0FF;#00BFFF" dur="3s" repeatCount="indefinite" />
+    </path>
+    
+    <animateTransform 
+      attributeName="transform" 
+      type="rotate" 
+      from="0 256 256" 
+      to="360 256 256" 
+      dur="20s" 
+      repeatCount="indefinite"
+    />
+  </g>
+</svg> 

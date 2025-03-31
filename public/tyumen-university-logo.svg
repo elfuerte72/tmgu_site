@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#0284c7" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Геометрические фигуры логотипа (буква Г в изометрии) -->
+  <g transform="translate(50, 100) scale(0.8)">
+    <!-- Верхняя часть буквы "Г" -->
+    <path d="M50 50L300 50L300 120L50 120L50 50Z" fill="url(#logoGradient)" />
+    
+    <!-- Вертикальная часть буквы "Г" -->
+    <path d="M50 120L120 120L120 350L50 350L50 120Z" fill="url(#logoGradient)" />
+    
+    <!-- 3D эффекты - боковые грани -->
+    <path d="M50 50L90 10L340 10L300 50Z" fill="url(#logoGradient)" opacity="0.85" />
+    <path d="M300 50L340 10L340 80L300 120Z" fill="url(#logoGradient)" opacity="0.75" />
+    <path d="M50 120L90 80L90 310L50 350Z" fill="url(#logoGradient)" opacity="0.65" />
+    <path d="M120 120L160 80L160 310L120 350Z" fill="url(#logoGradient)" opacity="0.75" />
+  </g>
+  
+  <!-- Название университета -->
+  <g transform="translate(260, 200) rotate(10)">
+    <text font-family="Arial, sans-serif" font-weight="bold" font-size="18" fill="#1e293b">
+      <tspan x="0" y="0">Тюменский</tspan>
+      <tspan x="0" y="25">государственный</tspan>
+      <tspan x="0" y="50">университет</tspan>
+    </text>
+  </g>
+  
+  <!-- Аббревиатура -->
+  <text x="260" y="300" font-family="Arial, sans-serif" font-weight="bold" font-size="36" fill="#0c4a6e">
+    ТюмГУ
+  </text>
+</svg> 

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <circle cx="256" cy="256" r="256" fill="#f8f8f8"/>
+  <g transform="translate(128, 128)">
+    <path d="M52 -8L182 42V92L52 42V-8Z" fill="#00BFFF"/>
+    <path d="M127 52L182 92V192L127 152V52Z" fill="#00BFFF"/>
+  </g>
+  <text x="256" y="380" font-family="Arial, sans-serif" font-size="36" font-weight="bold" fill="#333333" text-anchor="middle">ТюмГУ</text>
+</svg> 

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none">
+  <circle cx="256" cy="256" r="256" fill="#f8f8f8"/>
+  <path d="M180 120L310 170V220L180 170V120Z" fill="#00BFFF"/>
+  <path d="M255 180L310 220V320L255 280V180Z" fill="#00BFFF"/>
+  <text x="325" y="230" font-family="Arial, sans-serif" font-size="24" font-weight="bold" fill="#333333">Тюменский</text>
+  <text x="325" y="260" font-family="Arial, sans-serif" font-size="24" font-weight="bold" fill="#333333">Государственный</text>
+  <text x="325" y="290" font-family="Arial, sans-serif" font-size="24" font-weight="bold" fill="#333333">Университет</text>
+</svg> 
