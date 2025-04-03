@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
+import "@/styles/chatIcon.css";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { Send, Mic, Volume2, VolumeX, StopCircle, Loader2 } from "lucide-react";
@@ -385,7 +386,7 @@ export const AnimatedChatBot: React.FC<AnimatedChatBotProps> = ({ embedded = fal
         // Embedded version for hero section
         <div className="w-full h-full flex items-center justify-center">
           <motion.div
-            className="relative w-64 h-64 md:w-80 md:h-80 cursor-pointer"
+            className="relative w-64 h-64 md:w-80 md:h-80 cursor-pointer bg-transparent border-none shadow-none overflow-visible"
             onClick={() => setIsOpen(true)}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.98 }}
@@ -395,19 +396,26 @@ export const AnimatedChatBot: React.FC<AnimatedChatBotProps> = ({ embedded = fal
             }}
             aria-label="Открыть чат"
           >
-            <Image
-              src="/images/chat-icon.png"
-              alt="Чат-бот ТюмГУ"
-              fill
-              style={{ objectFit: 'contain' }}
-            />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="chat-icon-container">
+                <div className="chat-icon-image circle-mask w-full h-full">
+                  <Image
+                    src="/images/chat-icon-updated.png"
+                    alt="Чат-бот ТюмГУ"
+                    fill
+                    style={{ objectFit: 'contain' }}
+                    className="pointer-events-none"
+                  />
+                </div>
+              </div>
+            </div>
           </motion.div>
         </div>
       ) : (
         // Floating version for other pages
         <div className="fixed bottom-6 right-6 z-50"> 
           <motion.button
-            className="relative w-16 h-16 md:w-20 md:h-20 focus:outline-none"
+            className="relative w-16 h-16 md:w-20 md:h-20 focus:outline-none bg-transparent border-none shadow-none overflow-visible"
             onClick={() => setIsOpen(true)}
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.95 }}
@@ -417,12 +425,17 @@ export const AnimatedChatBot: React.FC<AnimatedChatBotProps> = ({ embedded = fal
             }}
             aria-label="Открыть чат"
           >
-            <Image
-              src="/images/chat-icon.png" 
-              alt="Чат-бот ТюмГУ"
-              width={80}
-              height={80}
-            />
+            <div className="w-full h-full flex items-center justify-center">
+              <div className="chat-icon-image circle-mask w-full h-full flex items-center justify-center">
+                <Image
+                  src="/images/chat-icon-updated.png" 
+                  alt="Чат-бот ТюмГУ"
+                  width={80}
+                  height={80}
+                  className="pointer-events-none"
+                />
+              </div>
+            </div>
           </motion.button>
         </div>
       )}

@@ -1,0 +1,25 @@
+/* Custom CSS for the chat icon */
+.chat-icon-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.chat-icon-image {
+  position: relative;
+  border-radius: 50%;
+  overflow: hidden;
+  background-color: transparent;
+}
+
+.chat-icon-image img {
+  isolation: isolate;
+  mix-blend-mode: multiply !important;
+  background-color: transparent !important;
+  border-radius: 50%;
+}
+
+.circle-mask {
+  mask-image: radial-gradient(circle, white 60%, transparent 60%);
+  -webkit-mask-image: radial-gradient(circle, white 60%, transparent 60%);
+}
