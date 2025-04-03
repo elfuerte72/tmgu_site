@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { ChatMessage } from '@/utils/types';
 import VoiceRecorder from '@/components/VoiceRecorder';
+import { Button } from '@/components/ui/button';
 
 interface ChatBoxProps {
   messages: ChatMessage[];
@@ -15,6 +16,8 @@ interface ChatBoxProps {
 const ChatBox = ({ messages, isLoading, onSendMessage, onClose }: ChatBoxProps) => {
   const [inputMessage, setInputMessage] = useState('');
   const [isProcessingAudio, setIsProcessingAudio] = useState(false);
+  const [wasVoiceMessage, setWasVoiceMessage] = useState(false);
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   
@@ -23,6 +26,7 @@ const ChatBox = ({ messages, isLoading, onSendMessage, onClose }: ChatBoxProps) 
     if (inputMessage.trim() && !isLoading) {
       onSendMessage(inputMessage);
       setInputMessage('');
+      setWasVoiceMessage(false); // Отмечаем, что сообщение было текстовым
     }
   };
 
@@ -49,6 +53,7 @@ const ChatBox = ({ messages, isLoading, onSendMessage, onClose }: ChatBoxProps) 
       // Отправляем распознанный текст в чат
       if (text.trim()) {
         onSendMessage(text);
+        setWasVoiceMessage(true); // Отмечаем, что сообщение было голосовым
       }
     } catch (error) {
       console.error('Ошибка при обработке голосового сообщения:', error);
@@ -77,20 +82,36 @@ const ChatBox = ({ messages, isLoading, onSendMessage, onClose }: ChatBoxProps) 
       
       if (audioRef.current) {
         audioRef.current.src = audioUrl;
+        setIsPlayingAudio(true);
+        
+        audioRef.current.onended = () => {
+          setIsPlayingAudio(false);
+        };
+        
         await audioRef.current.play();
       }
     } catch (error) {
       console.error('Ошибка при воспроизведении ответа:', error);
+      setIsPlayingAudio(false);
+    }
+  };
+  
+  // Остановка воспроизведения
+  const stopAudio = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      setIsPlayingAudio(false);
     }
   };
 
-  // Воспроизводим последний ответ ассистента
+  // Воспроизводим последний ответ ассистента только если предыдущее сообщение было голосовым
   useEffect(() => {
     const lastMessage = messages[messages.length - 1];
-    if (lastMessage?.role === 'assistant' && lastMessage.content) {
+    if (lastMessage?.role === 'assistant' && lastMessage.content && wasVoiceMessage) {
       playResponse(lastMessage.content);
     }
-  }, [messages]);
+  }, [messages, wasVoiceMessage]);
 
   // Автоматическая прокрутка вниз при новом сообщении только в пределах контейнера сообщений
   useEffect(() => {
@@ -208,6 +229,48 @@ const ChatBox = ({ messages, isLoading, onSendMessage, onClose }: ChatBoxProps) 
       
       {/* Аудио элемент для воспроизведения ответов */}
       <audio ref={audioRef} className="hidden" />
+      
+      {/* Кнопка остановки воспроизведения с анимацией */}
+      <AnimatePresence>
+        {isPlayingAudio && (
+          <motion.div 
+            className="fixed top-4 right-4 z-50"
+            initial={{ opacity: 0, scale: 0.8, y: -10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.8, y: -10 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+          >
+            <Button 
+              onClick={stopAudio}
+              className="bg-blue-600 hover:bg-blue-700 text-white rounded-full py-2 px-4 shadow-lg flex items-center space-x-2 transition-all duration-300 hover:shadow-xl"
+            >
+              <motion.div
+                animate={{ scale: [1, 1.1, 1] }}
+                transition={{ 
+                  repeat: Infinity, 
+                  duration: 1.5,
+                  ease: "easeInOut"
+                }}
+                className="relative"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M18 3a1 1 0 00-1.196-.98l-10 2A1 1 0 006 5v9.114A4.369 4.369 0 005 14c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V7.82l8-1.6v5.894A4.37 4.37 0 0015 12c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V3z" />
+                </svg>
+                <motion.span 
+                  className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"
+                  animate={{ opacity: [0.5, 1, 0.5] }}
+                  transition={{ 
+                    repeat: Infinity, 
+                    duration: 1,
+                    ease: "easeInOut"
+                  }}
+                />
+              </motion.div>
+              <span>Остановить</span>
+            </Button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Улучшенная форма ввода */}
       <form onSubmit={handleSubmit} className="border-t border-gray-100 dark:border-gray-700 p-4 bg-white dark:bg-gray-800 rounded-b-2xl">

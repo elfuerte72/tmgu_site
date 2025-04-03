@@ -3,7 +3,6 @@ import dynamic from "next/dynamic";
 
 // Динамический импорт 3D компонентов для оптимизации
 const HeroSection = dynamic(() => import("@/components/HeroSection"), { ssr: true });
-import ChatBotWrapper from "@/components/chat/ChatBotWrapper";
 
 import Header from "@/components/Header";
 import HistorySection from "@/components/HistorySection";
@@ -27,7 +26,6 @@ export default function Home() {
       <StudentLifeSection />
       <ContactsSection />
       <Footer />
-      <ChatBotWrapper />
     </main>
   );
 }

@@ -2,10 +2,10 @@
 
 import dynamic from 'next/dynamic';
 
-const ChatWidget = dynamic(() => import('./ChatWidget'), {
+const AnimatedChatBot = dynamic(() => import('./AnimatedChatBot'), {
   ssr: false,
 });
 
 export default function ClientChatWidget() {
-  return <ChatWidget />;
+  return <AnimatedChatBot />;
 }

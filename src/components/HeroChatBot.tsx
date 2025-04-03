@@ -1,6 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence, useInView, useCycle, useAnimate } from 'framer-motion';
 import useChat from '@/hooks/useChat';
+import VoiceRecorder from '@/components/VoiceRecorder';
+import { Mic, Send, Speaker, Loader2 } from 'lucide-react';
 
 interface HeroChatBotProps {
   className?: string;
@@ -18,6 +20,12 @@ const HeroChatBot: React.FC<HeroChatBotProps> = ({ className = '' }) => {
     { scale: 1, boxShadow: "0px 0px 0px 0px rgba(59, 130, 246, 0.4)" },
     { scale: 1.05, boxShadow: "0px 0px 0px 10px rgba(59, 130, 246, 0)" }
   );
+  
+  // Состояния для голосовых сообщений
+  const [isRecording, setIsRecording] = useState(false);
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [currentPlayingId, setCurrentPlayingId] = useState<number | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   
   // Отправляем приветственное сообщение при первом открытии чата
   useEffect(() => {
@@ -44,6 +52,87 @@ const HeroChatBot: React.FC<HeroChatBotProps> = ({ className = '' }) => {
       return () => clearInterval(interval);
     }
   }, [isOpen, cyclePulseEffect]);
+
+  // Функция для обработки записи голосового сообщения
+  const handleVoiceRecording = useCallback(async (blob: Blob) => {
+    if (isLoading) return;
+    
+    setIsRecording(false);
+    
+    try {
+      // Формируем данные для отправки на сервер
+      const formData = new FormData();
+      formData.append('audio', blob);
+      
+      // Отправляем аудио на сервер для распознавания
+      const response = await fetch('/api/speech-to-text', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      const data = await response.json();
+      
+      if (data.text) {
+        // Отправляем распознанный текст как сообщение пользователя
+        sendMessage(data.text);
+      }
+    } catch (error) {
+      console.error('Ошибка при обработке голосового сообщения:', error);
+    }
+  }, [isLoading, sendMessage]);
+  
+  // Функция для воспроизведения ответа в виде голоса
+  const playAudioResponse = useCallback(async (messageId: number, text: string) => {
+    if (isPlayingAudio) {
+      // Останавливаем текущее воспроизведение
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+      setIsPlayingAudio(false);
+      setCurrentPlayingId(null);
+      return;
+    }
+    
+    try {
+      setIsPlayingAudio(true);
+      setCurrentPlayingId(messageId);
+      
+      // Запрашиваем аудио с сервера
+      const response = await fetch('/api/text-to-speech', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ text }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Ошибка при получении аудио');
+      }
+      
+      // Получаем аудио в формате blob
+      const audioBlob = await response.blob();
+      const audioUrl = URL.createObjectURL(audioBlob);
+      
+      // Создаем и воспроизводим аудио
+      const audio = new Audio(audioUrl);
+      audioRef.current = audio;
+      
+      audio.onended = () => {
+        setIsPlayingAudio(false);
+        setCurrentPlayingId(null);
+        URL.revokeObjectURL(audioUrl);
+        audioRef.current = null;
+      };
+      
+      audio.play();
+    } catch (error) {
+      console.error('Ошибка при воспроизведении аудио:', error);
+      setIsPlayingAudio(false);
+      setCurrentPlayingId(null);
+    }
+  }, [isPlayingAudio]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -431,21 +520,43 @@ const HeroChatBot: React.FC<HeroChatBotProps> = ({ className = '' }) => {
                         whileHover={{ scale: 1.02, y: -2 }}
                         transition={{ type: "spring", stiffness: 400 }}
                       >
-                        <div className={`text-${message.role === 'user' ? 'white' : 'gray-800'} text-base leading-relaxed`}>
-                          {/* Обработка переносов строк и форматирование сообщений бота */}
-                          {message.content?.split('\n').map((line: string, lineIndex: number) => (
-                            <div key={lineIndex} className={lineIndex > 0 ? 'mt-2' : ''}>
-                              {/* Нумерованные списки */}
-                              {/^\d+\./.test(line.trim()) ? (
-                                <div className="flex">
-                                  <span className="font-bold mr-2">{line.match(/^\d+\./)![0]}</span>
-                                  <span>{line.replace(/^\d+\./, '').trim()}</span>
-                                </div>
+                        <div className={`text-${message.role === 'user' ? 'white' : 'gray-800'} text-base leading-relaxed flex justify-between`}>
+                          <div>
+                            {/* Обработка переносов строк и форматирование сообщений бота */}
+                            {message.content?.split('\n').map((line: string, lineIndex: number) => (
+                              <div key={lineIndex} className={lineIndex > 0 ? 'mt-2' : ''}>
+                                {/* Нумерованные списки */}
+                                {/^\d+\./.test(line.trim()) ? (
+                                  <div className="flex">
+                                    <span className="font-bold mr-2">{line.match(/^\d+\./)![0]}</span>
+                                    <span>{line.replace(/^\d+\./, '').trim()}</span>
+                                  </div>
+                                ) : (
+                                  line || '\u00A0' /* Непечатаемый пробел для пустых строк */
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                          
+                          {/* Кнопка воспроизведения для сообщений бота */}
+                          {message.role === 'assistant' && message.content && (
+                            <motion.button
+                              onClick={() => playAudioResponse(index, message.content || '')}
+                              className={`ml-2 p-1 rounded-full self-end ${
+                                currentPlayingId === index && isPlayingAudio
+                                  ? 'bg-red-100 text-red-600'
+                                  : 'bg-blue-100 text-blue-600 hover:bg-blue-200'
+                              }`}
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.95 }}
+                            >
+                              {currentPlayingId === index && isPlayingAudio ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
                               ) : (
-                                line || '\u00A0' /* Непечатаемый пробел для пустых строк */
+                                <Speaker className="h-4 w-4" />
                               )}
-                            </div>
-                          ))}
+                            </motion.button>
+                          )}
                         </div>
                       </motion.div>
                       {message.role === 'user' && (
@@ -505,40 +616,5 @@ const HeroChatBot: React.FC<HeroChatBotProps> = ({ className = '' }) => {
                       onChange={(e) => setInputMessage(e.target.value)}
                       placeholder="Введите сообщение..."
                       className="flex-1 border border-gray-200 rounded-full py-3 px-4 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow text-gray-900 placeholder-gray-500 bg-gray-50"
-                      disabled={isLoading}
-                      whileFocus={{ boxShadow: "0 0 0 3px rgba(59, 130, 246, 0.3)", backgroundColor: "white" }}
-                      transition={{ duration: 0.2 }}
-                      style={{ caretColor: "#3B82F6" }}
-                    />
-                    <motion.button
-                      type="submit"
-                      disabled={!inputMessage.trim() || isLoading}
-                      className={`rounded-full p-3 ${
-                        inputMessage.trim() && !isLoading
-                          ? 'bg-gradient-to-r from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 text-white shadow-md transition-all duration-200'
-                          : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                      }`}
-                      whileHover={{ 
-                        scale: inputMessage.trim() && !isLoading ? 1.05 : 1,
-                        boxShadow: inputMessage.trim() && !isLoading ? "0 5px 15px rgba(59, 130, 246, 0.4)" : "none"
-                      }}
-                      whileTap={{ 
-                        scale: inputMessage.trim() && !isLoading ? 0.95 : 1 
-                      }}
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.707l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L9 9.414V13a1 1 0 102 0V9.414l1.293 1.293a1 1 0 001.414-1.414z" clipRule="evenodd" transform="rotate(180, 10, 10)" />
-                      </svg>
-                    </motion.button>
-                  </div>
-                </motion.form>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-    </div>
-  );
-};
-
-export default HeroChatBot; 
+                      disabled={isLoading || isRecording}
+                      whileFocus={{ boxShadow: "0 0 0

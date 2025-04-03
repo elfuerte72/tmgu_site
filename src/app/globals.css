@@ -32,3 +32,23 @@ body {
 .font-inter {
   font-family: 'Inter', sans-serif;
 }
+
+/* Animation for recording button */
+@keyframes pulsate {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+  }
+  70% {
+    transform: scale(1.05);
+    box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
+}
+
+.pulsate-faint {
+  animation: pulsate 2s infinite;
+}

@@ -3,7 +3,7 @@
 import React from 'react';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { universityData } from '../utils/universityData';
-import HeroChatBot from './HeroChatBot';
+import AnimatedChatBot from './chat/AnimatedChatBot';
 
 /**
  * Герой-секция с текстовым контентом и чат-ботом
@@ -76,7 +76,7 @@ const HeroSection: React.FC = () => {
           transition={{ duration: 0.7, delay: 0.3 }}
         >
           {/* Чат-бот вместо логотипа университета */}
-          <HeroChatBot className="static transform-none" />
+          <AnimatedChatBot embedded={true} />
         </motion.div>
       </motion.div>
       
@@ -112,4 +112,4 @@ const HeroSection: React.FC = () => {
   );
 };
 
-export default HeroSection; 
+export default HeroSection;
