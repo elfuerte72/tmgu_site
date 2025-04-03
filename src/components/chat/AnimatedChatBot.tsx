@@ -130,11 +130,11 @@ export const AnimatedChatBot: React.FC<AnimatedChatBotProps> = ({ embedded = fal
         .filter(msg => msg.id !== newMessage.id) // Exclude the message we just added
         .map(msg => ({
           role: msg.sender === 'bot' ? 'assistant' : 'user',
-          content: msg.content
+          content: msg.content,
         }));
 
       // Call the chat API
-      const response = await fetch('/api/chat', {
+      const response = await fetch('/api/chat-rag', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

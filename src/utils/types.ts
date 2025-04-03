@@ -112,4 +112,29 @@ export interface TavilySearchResult {
 export interface TavilySearchResponse {
   answer?: string;
   results: TavilySearchResult[];
-} 
+}
+
+/**
+ * Типы для RAG системы
+ */
+
+export interface RagChunk {
+  text: string;
+  metadata: {
+    source: string;
+    sheet: string;
+  };
+}
+
+export interface RagEmbedding {
+  id: string;
+  text: string;
+  embedding: number[];
+  metadata?: Record<string, any>;
+}
+
+export interface RagSearchResult {
+  text: string;
+  score: number;
+  metadata?: Record<string, any>;
+}

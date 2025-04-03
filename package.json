@@ -6,13 +6,16 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "init-rag": "node scripts/initialize-rag.mjs"
   },
   "dependencies": {
+    "@pinecone-database/pinecone": "^5.1.1",
     "@react-three/drei": "^10.0.4",
     "@react-three/fiber": "^9.1.0",
     "@swc/helpers": "^0.5.6",
     "clsx": "^2.1.1",
+    "faiss-node": "^0.5.1",
     "framer-motion": "^12.6.2",
     "gsap": "^3.12.7",
     "lucide-react": "^0.485.0",
@@ -24,6 +27,9 @@
     "react-spring": "^9.7.5",
     "tailwind-merge": "^3.0.2",
     "three": "^0.174.0",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
+    "xlsx": "^0.18.5",
     "zustand": "^5.0.3"
   },
   "devDependencies": {
