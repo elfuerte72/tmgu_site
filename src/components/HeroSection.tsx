@@ -3,7 +3,7 @@
 import React from 'react';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { universityData } from '../utils/universityData';
-import AnimatedChatBot from './chat/AnimatedChatBot';
+import UniversityChatBot from './chat/UniversityChatBot';
 
 /**
  * Герой-секция с текстовым контентом и чат-ботом
@@ -75,8 +75,8 @@ const HeroSection: React.FC = () => {
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.7, delay: 0.3 }}
         >
-          {/* Чат-бот вместо логотипа университета */}
-          <AnimatedChatBot embedded={true} />
+          {/* Университетский чат-бот с информацией о поступлении */}
+          <UniversityChatBot embedded={true} initialMessage="Здравствуйте! Я виртуальный ассистент ТюмГУ. Могу рассказать вам о программах обучения, сроках поступления и ответить на вопросы о университете. Чем могу помочь?" />
         </motion.div>
       </motion.div>
       

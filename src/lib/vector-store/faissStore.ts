@@ -1,6 +1,5 @@
 import { promises as fs } from 'fs';
 import path from 'path';
-import { EmbeddedEntity } from '@/services/rag/embeddingService';
 
 /**
  * Вычисляет косинусное сходство между двумя векторами
@@ -22,9 +21,42 @@ function cosineSimilarity(vecA: number[], vecB: number[]): number {
 }
 
 /**
- * Класс для управления простым векторным хранилищем
+ * Интерфейсы для работы с векторным хранилищем
  */
-export class FaissVectorStore {
+export interface SearchResult {
+  id: string;
+  text: string;
+  score: number;
+  metadata?: Record<string, any>;
+}
+
+export interface Entity {
+  id: string;
+  vector: number[];
+  metadata?: Record<string, any>;
+}
+
+/**
+ * Интерфейс для сущности с эмбеддингом
+ */
+export interface EmbeddedEntity {
+  id: string;
+  text?: string;
+  embedding?: number[];
+  vector?: number[];
+  metadata?: Record<string, any>;
+}
+
+export interface VectorStore {
+  addItems(newEntities: EmbeddedEntity[]): Promise<void>;
+  search(queryVector: number[], k?: number): Promise<SearchResult[]>;
+  clear(): Promise<void>;
+  initialize(): Promise<void>;
+  save(): Promise<void>;
+  load(): Promise<void>;
+}
+
+export class FaissVectorStore implements VectorStore {
   private entities: EmbeddedEntity[] = [];
   private dimensions: number = 1536; // Размерность для модели text-embedding-3-small
   private storePath: string;
@@ -44,20 +76,28 @@ export class FaissVectorStore {
    */
   async initialize(): Promise<void> {
     try {
+      console.log('=== Инициализация векторного хранилища ===');
+      console.log('Путь к хранилищу:', this.storePath);
+      console.log('Путь к данным:', this.dataPath);
+      
       try {
         // Пытаемся загрузить существующие данные
         await this.load();
-        console.log('Данные успешно загружены');
+        console.log('Данные успешно загружены из:', this.dataPath);
+        console.log(`Загружено ${this.entities.length} сущностей`);
       } catch (error) {
         // Если не удалось загрузить, создаем новое хранилище
+        console.log('Не удалось загрузить существующие данные:', error instanceof Error ? error.message : 'Неизвестная ошибка');
         console.log('Создаем новое векторное хранилище...');
         this.entities = [];
         
         // Создаем директорию для хранения, если её нет
+        console.log('Создание директории хранилища:', this.storePath);
         await fs.mkdir(this.storePath, { recursive: true });
+        console.log('Директория хранилища создана или уже существует');
       }
     } catch (error) {
-      console.error('Ошибка при инициализации векторного хранилища:', error);
+      console.error('Критическая ошибка при инициализации векторного хранилища:', error);
       throw error;
     }
   }
@@ -88,24 +128,45 @@ export class FaissVectorStore {
    * @param k Количество ближайших соседей для возврата
    * @returns Массив найденных сущностей
    */
-  async search(queryEmbedding: number[], k: number = 5): Promise<EmbeddedEntity[]> {
+  async search(queryEmbedding: number[], k: number = 5): Promise<SearchResult[]> {
     try {
       if (this.entities.length === 0) {
         console.log('Хранилище пусто, нет результатов для поиска');
         return [];
       }
 
+      console.log(`Поиск в хранилище с ${this.entities.length} сущностями`);
+      
+      // Проверяем структуру первой сущности
+      if (this.entities.length > 0) {
+        const firstEntity = this.entities[0];
+        console.log('Структура первой сущности:', Object.keys(firstEntity));
+      }
+
       // Вычисляем косинусное сходство между запросом и всеми эмбеддингами
-      const similarities = this.entities.map(entity => ({
-        entity,
-        similarity: cosineSimilarity(queryEmbedding, entity.embedding)
-      }));
+      const similarities = this.entities.map(entity => {
+        // Проверяем, есть ли свойство embedding или vector
+        const vector = entity.embedding || entity.vector;
+        if (!vector) {
+          console.error('Ошибка: не найден вектор в сущности', entity);
+          return { entity, similarity: 0 };
+        }
+        return {
+          entity,
+          similarity: cosineSimilarity(queryEmbedding, vector)
+        };
+      });
       
       // Сортируем по убыванию сходства
       similarities.sort((a, b) => b.similarity - a.similarity);
       
-      // Возвращаем топ-k результатов
-      return similarities.slice(0, k).map(item => item.entity);
+      // Возвращаем топ-k результатов в формате SearchResult
+      return similarities.slice(0, k).map(item => ({
+        id: item.entity.id,
+        text: item.entity.text || '',
+        score: item.similarity,
+        metadata: item.entity.metadata
+      }));
     } catch (error) {
       console.error('Ошибка при поиске в векторном хранилище:', error);
       throw error;
@@ -117,16 +178,21 @@ export class FaissVectorStore {
    */
   async save(): Promise<void> {
     try {
+      console.log('=== Сохранение данных в хранилище ===');
+      console.log('Путь для сохранения:', this.dataPath);
+      console.log(`Количество сущностей для сохранения: ${this.entities.length}`);
+      
       // Создаем директорию, если она не существует
       await fs.mkdir(this.storePath, { recursive: true });
+      console.log('Директория хранилища подготовлена');
       
       // Сохраняем метаданные и тексты
-      await fs.writeFile(
-        this.dataPath,
-        JSON.stringify(this.entities, null, 2)
-      );
+      const data = JSON.stringify(this.entities, null, 2);
+      console.log(`Размер данных для сохранения: ${data.length} байт`);
       
-      console.log('Данные успешно сохранены');
+      await fs.writeFile(this.dataPath, data);
+      console.log('Данные успешно записаны в файл');
+      
     } catch (error) {
       console.error('Ошибка при сохранении данных:', error);
       throw error;

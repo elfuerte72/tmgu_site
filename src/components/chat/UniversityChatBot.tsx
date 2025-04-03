@@ -1,10 +1,9 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import "@/styles/chatIcon.css";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Mic, Volume2, VolumeX, StopCircle, Loader2 } from "lucide-react";
+import { Send, Mic, Volume2, VolumeX, StopCircle, Loader2, BookOpen, School, Calendar, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ChatMessage as ChatMessageType } from "@/utils/types";
@@ -16,14 +15,28 @@ interface Message {
   isPlaying?: boolean;
 }
 
-interface AnimatedChatBotProps {
+interface UniversityChatBotProps {
   embedded?: boolean;
+  initialMessage?: string;
 }
 
-const ChatMessage: React.FC<{ message: Message; onPlaySound: (text: string) => void; onStopSound: () => void }> = ({ message, onPlaySound, onStopSound }) => {
+/**
+ * Компонент сообщения для университетского чат-бота
+ */
+const ChatMessage: React.FC<{ 
+  message: Message; 
+  onPlaySound: (text: string) => void; 
+  onStopSound: () => void 
+}> = ({ message, onPlaySound, onStopSound }) => {
   const isUser = message.sender === "user";
+  
   return (
     <div className={cn("flex mb-3", isUser ? "justify-end" : "justify-start")}>
+      {!isUser && (
+        <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center mr-2 flex-shrink-0">
+          <School className="h-4 w-4 text-blue-600" />
+        </div>
+      )}
       <div
         className={cn(
           "py-2 px-4 rounded-2xl max-w-[75%] text-sm shadow-sm",
@@ -59,12 +72,44 @@ const ChatMessage: React.FC<{ message: Message; onPlaySound: (text: string) => v
           )}
         </div>
       )}
+      {isUser && (
+        <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center ml-2 flex-shrink-0">
+          <svg className="h-4 w-4 text-white" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-2-8c0-1.1.9-2 2-2s2 .9 2 2-.9 2-2 2-2-.9-2-2zm-2 4h8v1c0 1.1-.9 2-2 2h-4c-1.1 0-2-.9-2-2v-1z" />
+          </svg>
+        </div>
+      )}
     </div>
   );
 };
 
+/**
+ * Кнопка с темой для быстрого выбора
+ */
+const TopicButton: React.FC<{ 
+  icon: React.ReactNode; 
+  label: string; 
+  onClick: () => void;
+}> = ({ icon, label, onClick }) => {
+  return (
+    <Button
+      variant="ghost"
+      className="flex items-center gap-2 py-2 px-3 rounded-full text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 border border-gray-200 transition-colors"
+      onClick={onClick}
+    >
+      {icon}
+      <span>{label}</span>
+    </Button>
+  );
+};
 
-export const AnimatedChatBot: React.FC<AnimatedChatBotProps> = ({ embedded = false }) => {
+/**
+ * Главный компонент университетского чат-бота
+ */
+export const UniversityChatBot: React.FC<UniversityChatBotProps> = ({ 
+  embedded = false,
+  initialMessage = "Здравствуйте! Я виртуальный ассистент ТюмГУ. Я могу ответить на вопросы о поступлении в университет, расписании, программах обучения и многом другом. Чем я могу помочь вам сегодня?"
+}) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -72,7 +117,7 @@ export const AnimatedChatBot: React.FC<AnimatedChatBotProps> = ({ embedded = fal
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 1,
-      content: "Здравствуйте! Я ассистент ТюмГУ. Как я могу помочь вам?",
+      content: initialMessage,
       sender: "bot",
       isPlaying: false,
     },
@@ -133,7 +178,7 @@ export const AnimatedChatBot: React.FC<AnimatedChatBotProps> = ({ embedded = fal
           content: msg.content,
         }));
 
-      // Call the chat API
+      // Call the chat-rag API - специально для университетских данных
       const response = await fetch('/api/chat-rag', {
         method: 'POST',
         headers: {
@@ -309,54 +354,7 @@ export const AnimatedChatBot: React.FC<AnimatedChatBotProps> = ({ embedded = fal
       
       if (data.text) {
         // Create and send the user message
-        const newMessage: Message = {
-          id: Date.now(),
-          content: data.text,
-          sender: "user",
-        };
-
-        setMessages((prev) => [...prev, newMessage]);
-        setInput("");
-        
-        // Prepare chat history for API call
-        const chatHistory: ChatMessageType[] = messages
-          .map(msg => ({
-            role: msg.sender === 'bot' ? 'assistant' : 'user',
-            content: msg.content
-          }));
-
-        // Call the chat-rag API (используем тот же API, что и для текстового ввода)
-        const chatResponse = await fetch('/api/chat-rag', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            message: data.text,
-            history: chatHistory,
-          }),
-        });
-
-        if (!chatResponse.ok) {
-          throw new Error('Failed to get response from chat API');
-        }
-
-        const chatData = await chatResponse.json();
-        
-        const botResponse: Message = {
-          id: Date.now() + 1,
-          content: chatData.message || "Извините, я не смог обработать ваш запрос. Пожалуйста, попробуйте еще раз.",
-          sender: "bot",
-          isPlaying: false,
-        };
-        
-        setMessages((prev) => [...prev, botResponse]);
-        setIsLoading(false);
-        
-        // Auto-play response if not muted
-        if (!isMuted) {
-          handlePlaySound(botResponse.content, botResponse.id);
-        }
+        await sendMessage(data.text);
       }
     } catch (error) {
       console.error('Error processing speech to text:', error);
@@ -379,11 +377,22 @@ export const AnimatedChatBot: React.FC<AnimatedChatBotProps> = ({ embedded = fal
       handleSendMessage();
     }
   };
+  
+  // Функция для отправки сообщений, связанных с часто задаваемыми вопросами
+  const sendMessage = async (text: string) => {
+    await handleSendMessage({ preventDefault: () => {} } as React.FormEvent);
+    setInput(text);
+  };
+
+  const handleTopicClick = (topic: string) => {
+    setInput(topic);
+    handleSendMessage();
+  };
 
   return (
     <>
       {embedded ? (
-        // Embedded version for hero section
+        // Embedded version for hero section with university branding
         <div className="w-full h-full flex items-center justify-center">
           <motion.div
             className="relative w-64 h-64 md:w-80 md:h-80 cursor-pointer bg-transparent border-none shadow-none overflow-visible"
@@ -394,7 +403,7 @@ export const AnimatedChatBot: React.FC<AnimatedChatBotProps> = ({ embedded = fal
               y: [0, -8, 0],
               transition: { duration: 3, repeat: Infinity, ease: "easeInOut" }
             }}
-            aria-label="Открыть чат"
+            aria-label="Открыть чат с ассистентом ТюмГУ"
           >
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="chat-icon-container">
@@ -415,7 +424,7 @@ export const AnimatedChatBot: React.FC<AnimatedChatBotProps> = ({ embedded = fal
         // Floating version for other pages
         <div className="fixed bottom-6 right-6 z-50"> 
           <motion.button
-            className="relative w-16 h-16 md:w-20 md:h-20 focus:outline-none bg-transparent border-none shadow-none overflow-visible"
+            className="relative w-16 h-16 md:w-20 md:h-20 focus:outline-none rounded-full bg-blue-600 shadow-lg border-2 border-white overflow-visible flex items-center justify-center"
             onClick={() => setIsOpen(true)}
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.95 }}
@@ -423,19 +432,9 @@ export const AnimatedChatBot: React.FC<AnimatedChatBotProps> = ({ embedded = fal
                 y: [0, -5, 0],
                 transition: { duration: 2, repeat: Infinity, ease: "easeInOut" }
             }}
-            aria-label="Открыть чат"
+            aria-label="Открыть чат с ассистентом ТюмГУ"
           >
-            <div className="w-full h-full flex items-center justify-center">
-              <div className="chat-icon-image circle-mask w-full h-full flex items-center justify-center">
-                <Image
-                  src="/images/chat-icon-updated.png" 
-                  alt="Чат-бот ТюмГУ"
-                  width={80}
-                  height={80}
-                  className="pointer-events-none"
-                />
-              </div>
-            </div>
+            <School className="w-8 h-8 text-white" />
           </motion.button>
         </div>
       )}
@@ -459,21 +458,21 @@ export const AnimatedChatBot: React.FC<AnimatedChatBotProps> = ({ embedded = fal
               transition={{ type: "spring", damping: 20, stiffness: 200 }}
               onClick={(e) => e.stopPropagation()} 
             >
-              <div className="flex items-center justify-between p-4 border-b border-gray-200/50 bg-white/95">
+              <div className="flex items-center justify-between p-4 border-b border-gray-200/50 bg-gradient-to-r from-blue-600 to-blue-800 text-white">
                 <div className="flex items-center">
-                  <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center mr-3">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
-                      <path d="M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-3 3v-3H4a2 2 0 01-2-2V5z" />
-                      <path d="M15 7v2a4 4 0 01-4 4H9.828l-1.766 1.767c.28.149.599.233.938.233h2l3 3v-3h2a2 2 0 002-2V9a2 2 0 00-2-2h-1z" />
-                    </svg>
+                  <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center mr-3">
+                    <School className="h-6 w-6 text-white" />
                   </div>
-                  <h2 className="text-lg font-semibold text-gray-800">Ассистент ТюмГУ</h2>
+                  <div>
+                    <h2 className="text-lg font-semibold">Ассистент ТюмГУ</h2>
+                    <p className="text-xs text-blue-100">Информация о поступлении и обучении</p>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 rounded-full text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                      className="h-8 w-8 rounded-full text-white hover:text-blue-100 hover:bg-white/10 transition-colors"
                       onClick={() => setIsMuted(!isMuted)}
                       aria-label={isMuted ? "Включить звук" : "Отключить звук"}
                   >
@@ -482,7 +481,7 @@ export const AnimatedChatBot: React.FC<AnimatedChatBotProps> = ({ embedded = fal
                   <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 rounded-full text-gray-500 hover:text-red-600 hover:bg-red-50 transition-colors"
+                      className="h-8 w-8 rounded-full text-white hover:text-blue-100 hover:bg-white/10 transition-colors"
                       onClick={() => setIsOpen(false)}
                       aria-label="Закрыть чат"
                   >
@@ -491,6 +490,30 @@ export const AnimatedChatBot: React.FC<AnimatedChatBotProps> = ({ embedded = fal
                       </svg>
                    </Button>
                 </div>
+              </div>
+
+              {/* Topic buttons for quick selection */}
+              <div className="py-3 px-4 border-b border-gray-200/50 flex gap-2 overflow-x-auto pb-3 scrollbar-thin">
+                <TopicButton 
+                  icon={<Calendar className="h-4 w-4" />} 
+                  label="Сроки поступления" 
+                  onClick={() => handleTopicClick("Какие сроки подачи документов на бакалавриат?")}
+                />
+                <TopicButton 
+                  icon={<BookOpen className="h-4 w-4" />} 
+                  label="Программы обучения" 
+                  onClick={() => handleTopicClick("Какие направления бакалавриата есть в ТюмГУ?")}
+                />
+                <TopicButton 
+                  icon={<School className="h-4 w-4" />} 
+                  label="Поступление в гимназию" 
+                  onClick={() => handleTopicClick("Как поступить в гимназию ТюмГУ?")}
+                />
+                <TopicButton 
+                  icon={<Info className="h-4 w-4" />} 
+                  label="Необходимые документы" 
+                  onClick={() => handleTopicClick("Какие документы нужны для поступления?")}
+                />
               </div>
 
               <div className="flex-1 overflow-y-auto p-5 space-y-3">
@@ -504,14 +527,17 @@ export const AnimatedChatBot: React.FC<AnimatedChatBotProps> = ({ embedded = fal
                 ))}
                 {isLoading && (
                    <div className="flex justify-start mb-3">
+                       <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center mr-2 flex-shrink-0">
+                         <School className="h-4 w-4 text-blue-600" />
+                       </div>
                        <div className="py-2 px-4 rounded-2xl bg-gray-100 text-gray-500 rounded-bl-none border border-gray-200/50 backdrop-blur-sm">
                            <div className="flex items-center gap-2">
                              <div className="flex space-x-1">
-                               <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                               <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                               <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                               <div className="w-2 h-2 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                               <div className="w-2 h-2 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                               <div className="w-2 h-2 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '300ms' }}></div>
                              </div>
-                             <span>Печатает...</span>
+                             <span>Ищу информацию...</span>
                            </div>
                        </div>
                    </div>
@@ -545,7 +571,7 @@ export const AnimatedChatBot: React.FC<AnimatedChatBotProps> = ({ embedded = fal
                        value={input}
                        onChange={(e) => setInput(e.target.value)}
                        onKeyDown={handleKeyDown}
-                       placeholder="Введите сообщение..."
+                       placeholder="Задайте вопрос о поступлении в ТюмГУ..."
                        className="w-full resize-none rounded-2xl py-3 px-4 text-sm text-black placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-100 min-h-[45px] max-h-[120px] transition-all duration-200"
                        rows={1}
                        disabled={isLoading || isRecording}
@@ -571,4 +597,4 @@ export const AnimatedChatBot: React.FC<AnimatedChatBotProps> = ({ embedded = fal
   );
 };
 
-export default AnimatedChatBot;
+export default UniversityChatBot;

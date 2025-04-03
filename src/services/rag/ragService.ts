@@ -1,4 +1,6 @@
 import path from 'path';
+import fs from 'fs';
+import { promises as fsPromises } from 'fs';
 import { createEmbedding, createEmbeddingsWithMetadata } from './embeddingService';
 import { FaissVectorStore } from '@/lib/vector-store/faissStore';
 import { createTopicBasedChunks, createChunksFromTextFile } from '@/utils/excel/excelParser';
@@ -11,20 +13,30 @@ const TEXT_FILE_PATH = path.join(process.cwd(), 'data', 'test-data.txt');
 const vectorStore = new FaissVectorStore();
 
 /**
- * Инициализирует и наполняет векторное хранилище данными из Excel файла
+ * Инициализирует RAG систему и заполняет векторное хранилище
  */
-export async function initializeRAG(forceInit: boolean = false): Promise<void> {
-  // Проверяем наличие флага инициализации
-  const initRag = process.env.INIT_RAG === 'true' || forceInit;
+export async function initializeRAG(): Promise<void> {
+  console.log('Инициализация RAG системы...');
+  
   try {
-    console.log('Инициализация RAG системы...');
+    console.log('=== Начало инициализации RAG ===');
+    console.log('INIT_RAG флаг:', process.env.INIT_RAG);
     
-    // Инициализация векторного хранилища
-    await vectorStore.initialize();
+    // Проверяем, есть ли уже загруженные данные
+    try {
+      console.log('Попытка инициализации векторного хранилища...');
+      await vectorStore.initialize();
+      console.log('Векторное хранилище успешно инициализировано');
+    } catch (error) {
+      console.error('Ошибка при инициализации векторного хранилища:', error);
+    }
     
     // Если стоит флаг принудительной инициализации, очищаем хранилище
+    const initRag = process.env.INIT_RAG === 'true';
+    console.log('Проверка флага INIT_RAG:', initRag);
+    
     if (initRag) {
-      console.log('Обнаружен флаг инициализации RAG, выполняем полную инициализацию...');
+      console.log('=== Начало полной инициализации RAG ===');
       try {
         await vectorStore.clear();
         console.log('Векторное хранилище очищено');
@@ -34,42 +46,52 @@ export async function initializeRAG(forceInit: boolean = false): Promise<void> {
     } else {
       // Проверка, нужно ли заполнять хранилище
       try {
-      // Выполняем тестовый поиск, чтобы проверить, есть ли данные
-      const testQuery = 'тест';
-      const testEmbedding = await createEmbedding(testQuery);
-      const results = await vectorStore.search(testEmbedding, 1);
-      
-      if (results.length > 0 && !initRag) {
-        console.log('Хранилище уже содержит данные, пропускаем загрузку');
-        return;
+        // Выполняем тестовый поиск, чтобы проверить, есть ли данные
+        const testQuery = 'тест';
+        const testEmbedding = await createEmbedding(testQuery);
+        const results = await vectorStore.search(testEmbedding, 1);
+        
+        if (results.length > 0 && !initRag) {
+          console.log('Хранилище уже содержит данные, пропускаем загрузку');
+          return;
+        }
+      } catch (error) {
+        // Если возникла ошибка при тестовом поиске, продолжаем заполнение
+        console.log('Требуется заполнение хранилища...');
       }
-    } catch (error) {
-      // Если возникла ошибка при тестовом поиске, продолжаем заполнение
-      console.log('Требуется заполнение хранилища...');
     }
-  }
-    
-    // Извлечение и обработка данных из текстового файла
-    console.log('Извлечение данных из текстового файла:', TEXT_FILE_PATH);
     
     // Определяем тип для чанков
     type ChunkType = {text: string, metadata: Record<string, string>};
     let chunks: ChunkType[] = [];
     
-    try {
-      // Сначала пробуем использовать текстовый файл
-      chunks = await createChunksFromTextFile(TEXT_FILE_PATH);
-      console.log(`Создано ${chunks.length} чанков из текстового файла`);
-    } catch (textError) {
-      console.error('Ошибка при чтении текстового файла:', textError);
+    // Загружаем все файлы из папки data
+    const dataDir = path.join(process.cwd(), 'data');
+    console.log('Сканирование директории:', dataDir);
+    const files = await fsPromises.readdir(dataDir);
+    console.log('Найдены файлы:', files);
+    
+    for (const file of files) {
+      console.log('Обработка файла:', file);
+      if (file === 'faiss-store') continue; // Пропускаем папку с векторным хранилищем
       
-      // Если текстовый файл недоступен, пробуем Excel
+      const filePath = path.join(dataDir, file);
+      const stats = await fsPromises.stat(filePath);
+      
+      if (!stats.isFile()) continue;
+      
       try {
-        console.log('Пробуем использовать Excel файл:', EXCEL_FILE_PATH);
-        chunks = await createTopicBasedChunks(EXCEL_FILE_PATH);
-        console.log(`Создано ${chunks.length} чанков из Excel файла`);
-      } catch (excelError) {
-        console.error('Ошибка при чтении Excel файла:', excelError);
+        if (file.endsWith('.xlsx')) {
+          console.log('Обработка Excel файла:', file);
+          const excelChunks = await createTopicBasedChunks(filePath);
+          chunks.push(...excelChunks);
+        } else if (file.endsWith('.txt')) {
+          console.log('Обработка текстового файла:', file);
+          const textChunks = await createChunksFromTextFile(filePath);
+          chunks.push(...textChunks);
+        }
+      } catch (error) {
+        console.error(`Ошибка при обработке файла ${file}:`, error);
       }
     }
     
@@ -102,11 +124,24 @@ export async function initializeRAG(forceInit: boolean = false): Promise<void> {
  */
 export async function findRelevantChunks(query: string, maxResults: number = 3): Promise<string[]> {
   try {
+    // Проверяем, инициализировано ли хранилище
+    try {
+      await vectorStore.initialize();
+    } catch (initError) {
+      console.error('Ошибка при инициализации хранилища:', initError);
+    }
+    
     // Преобразуем запрос в эмбеддинг
     const queryEmbedding = await createEmbedding(query);
     
     // Ищем ближайшие документы в векторном хранилище
     const results = await vectorStore.search(queryEmbedding, maxResults);
+    
+    console.log(`Найдено ${results.length} результатов по запросу:`, query);
+    results.forEach((result, index) => {
+      console.log(`Результат ${index + 1}, сходство: ${result.score.toFixed(4)}`);
+      console.log(`Фрагмент: ${result.text.substring(0, 100)}...`);
+    });
     
     // Извлекаем текст из найденных документов
     return results.map(result => result.text);
@@ -131,17 +166,21 @@ export function createPromptWithContext(query: string, contextChunks: string[]):
   const context = contextChunks.join('\n\n');
   
   // Создаем промпт с инструкциями для модели GPT
-  return `Вы - цифровой ассистент Тюменского государственного университета.
+  const basePrompt = process.env.SYSTEM_PROMPT || '';
   
-КОНТЕКСТ:
+  return `${basePrompt}
+
+ВАЖНО: В базе знаний найдена следующая информация по вашему запросу. Используйте эти данные для ответа:
+
 ${context}
 
-ЗАПРОС ПОЛЬЗОВАТЕЛЯ:
-${query}
+Запрос: ${query}
 
-Используйте предоставленный КОНТЕКСТ, чтобы ответить на ЗАПРОС ПОЛЬЗОВАТЕЛЯ. 
-Если в контексте недостаточно информации для полного ответа, укажите это.
-Отвечайте кратко, дружелюбно и информативно.`;
+Инструкции:
+1. Ответ должен основываться ТОЛЬКО на предоставленной информации выше
+2. Если информации недостаточно - честно скажите об этом
+3. Не придумывайте данные, которых нет в контексте
+4. Сохраняйте стиль общения как в базовом промпте, но строго опирайтесь на факты из контекста`;
 }
 
 /**
@@ -153,14 +192,28 @@ ${query}
 export function hasRelevantInformation(chunks: string[], query: string): boolean {
   if (chunks.length === 0) return false;
   
-  // Добавляем синонимы и связанные слова для улучшения поиска
+  // Расширенный список синонимов и связанных слов для улучшения поиска
   const synonymMap: Record<string, string[]> = {
-    'пода': ['подач', 'подать', 'подавать', 'способ'],
-    'документ': ['документы', 'бумаг', 'документаци'],
-    'прием': ['принятие', 'подача', 'поступлени'],
-    'когда': ['срок', 'дата', 'время', 'период'],
-    'нужн': ['необходим', 'требу', 'обязательн'],
-    'как': ['каким образом', 'каким способом', 'способ'],
+    'пода': ['подач', 'подать', 'подавать', 'способ', 'прием', 'принятие'],
+    'документ': ['документы', 'бумаг', 'документаци', 'справк', 'заявлени'],
+    'прием': ['принятие', 'подача', 'поступлени', 'зачислени'],
+    'когда': ['срок', 'дата', 'время', 'период', 'начало', 'конец', 'до'],
+    'нужн': ['необходим', 'требу', 'обязательн', 'надо', 'следует'],
+    'как': ['каким образом', 'каким способом', 'способ', 'где', 'куда'],
+    'гимназ': ['гимназия', 'гимназии', 'гимназист', 'школ'],
+    'бакалавр': ['бакалавриат', 'бакалавра', 'первое высшее'],
+    'специал': ['специалитет', 'специальность', 'направлени'],
+    'магистр': ['магистратура', 'магистерск', 'второе высшее'],
+    'вступительн': ['экзамен', 'испытани', 'тест', 'егэ', 'баллы'],
+    'очн': ['очная', 'очное', 'очного', 'дневн'],
+    'заочн': ['заочная', 'заочное', 'дистанционн', 'удаленн'],
+    'форма': ['формат', 'формы', 'форме', 'способ'],
+    'обучени': ['учеб', 'образовани', 'учиться', 'подготовк'],
+    'стоимост': ['цена', 'оплат', 'платн', 'бюджет'],
+    'льгот': ['скидк', 'преимуществ', 'особые права', 'квот'],
+    'общежити': ['жиль', 'прожива', 'комнат', 'место'],
+    'адрес': ['находит', 'расположен', 'где', 'как добраться'],
+    'контакт': ['телефон', 'почта', 'email', 'связаться']
   };
   
   // Разбиваем запрос на слова и фильтруем короткие слова
@@ -189,14 +242,14 @@ export function hasRelevantInformation(chunks: string[], query: string): boolean
   // Проверяем наличие ключевых слов в чанках
   const relevantChunks = chunks.filter(chunk => {
     const chunkLower = chunk.toLowerCase();
-    // Считаем чанк релевантным, если в нем есть хотя бы 2 ключевых слова
+    // Снижаем порог до 1 совпадения, чтобы увеличить шансы найти релевантную информацию
     const matchCount = expandedKeywords.filter(keyword => chunkLower.includes(keyword)).length;
-    return matchCount >= 1; // Требуем минимум 1 совпадение
+    return matchCount >= 1;
   });
   
   console.log(`Найдено ${relevantChunks.length} релевантных чанков из ${chunks.length}`);
   
-  // Если есть хотя бы один релевантный чанк, считаем, что информация найдена
+  // Всегда возвращаем true, если есть хотя бы один релевантный чанк
   return relevantChunks.length > 0;
 }
 

@@ -1,5 +1,4 @@
 import OpenAI from 'openai';
-import { searchWeb } from './tavily';
 import { ChatMessage, FunctionDefinition } from './types';
 
 // Определение системного промпта с возможностью переопределения через переменную окружения
@@ -74,36 +73,10 @@ function cleanFormattingSymbols(text: string): string {
 }
 
 // Определение доступных функций для использования с OpenAI
-const availableFunctions: Record<string, (args: any) => Promise<string>> = {
-  search_web: async (args: { query: string }) => {
-    try {
-      console.log(`Вызов функции search_web с запросом: "${args.query}"`);
-      const result = await searchWeb(args.query);
-      return result;
-    } catch (error) {
-      console.error('Ошибка при выполнении search_web:', error);
-      return 'Не удалось выполнить поиск в интернете. Пожалуйста, попробуйте другой запрос.';
-    }
-  }
-};
+const availableFunctions: Record<string, (args: any) => Promise<string>> = {};
 
 // Схемы функций для OpenAI
-const functionDefinitions: FunctionDefinition[] = [
-  {
-    name: 'search_web',
-    description: 'Поиск актуальной информации в интернете по запросу пользователя',
-    parameters: {
-      type: 'object',
-      properties: {
-        query: {
-          type: 'string',
-          description: 'Поисковый запрос для получения информации',
-        },
-      },
-      required: ['query'],
-    },
-  },
-];
+const functionDefinitions: FunctionDefinition[] = [];
 
 /**
  * Преобразует наш внутренний формат сообщений в формат OpenAI API
@@ -173,7 +146,7 @@ export async function generateChatResponse(messages: ChatMessage[]): Promise<str
 Если у тебя остались вопросы о поступлении, обязательно спрашивай! 🎓`;
     }
 
-    // Проверяем, содержит ли сообщение ключевые слова для мок-ответа о правилах поступления
+    // Проверяем, содержит ли сообщение ключевые слова для запроса о правилах поступления
     if (
       (typeof userMessage === 'string') && 
       (
@@ -181,34 +154,19 @@ export async function generateChatResponse(messages: ChatMessage[]): Promise<str
         (userMessage.toLowerCase().includes('правила') && userMessage.toLowerCase().includes('тюмгу'))
       )
     ) {
-      console.log('Используем мок-ответ для запроса о правилах поступления');
-      // Если запрос о правилах поступления, используем мок-ответ напрямую
-      const mockResult = await searchWeb("правила поступления в ТюмГУ 2025");
-      
-      // Формируем ответ в стиле ассистента
-      return cleanFormattingSymbols(`Привет! 👋 Нашел для тебя актуальную информацию о поступлении в ТюмГУ на 2025 год! 🎓
-
-${mockResult}
-
-Если у тебя остались вопросы о поступлении, спрашивай - я с радостью помогу! 🚀`);
-    } 
-    else if (
+      console.log('Используем RAG для запроса о правилах поступления');
+      // Продолжаем стандартную обработку
+    }
+    
+    if (
       (typeof userMessage === 'string') && 
       (
         (userMessage.toLowerCase().includes('новост') && userMessage.toLowerCase().includes('тюмгу')) ||
         (userMessage.toLowerCase().includes('событи') && userMessage.toLowerCase().includes('тюмгу'))
       )
     ) {
-      console.log('Используем мок-ответ для запроса о новостях');
-      // Если запрос о новостях, используем мок-ответ напрямую
-      const mockResult = await searchWeb("новости и события в ТюмГУ 2025");
-      
-      // Формируем ответ в стиле ассистента
-      return cleanFormattingSymbols(`Привет! 👋 Вот самые свежие новости и события ТюмГУ в 2025 году! 🎉
-
-${mockResult}
-
-Университетская жизнь кипит! Если хочешь узнать подробнее о каком-то событии, просто спроси! 😎`);
+      console.log('Используем RAG для запроса о новостях');
+      // Продолжаем стандартную обработку
     }
     
     // Преобразуем сообщения в формат OpenAI
@@ -227,66 +185,13 @@ ${mockResult}
       model: 'gpt-4o',
       messages: openaiMessages,
       temperature: 0.3,
-      max_tokens: 1000,
-      tools: functionDefinitions.map(fn => ({
-        type: 'function',
-        function: fn
-      })),
+      max_tokens: 1000
     });
 
     const responseMessage = response.choices[0]?.message;
     console.log('Ответ от OpenAI:', responseMessage ? 'получен' : 'не получен');
     
-    // Если модель выбрала использование функции
-    if (responseMessage?.tool_calls && responseMessage.tool_calls.length > 0) {
-      const toolCall = responseMessage.tool_calls[0];
-      console.log('OpenAI вызывает функцию:', toolCall.function.name);
-      
-      if (toolCall.type === 'function' && toolCall.function.name === 'search_web') {
-        // Добавляем сообщение ассистента о том, что он выполняет поиск
-        messages.push({
-          role: 'assistant',
-          content: responseMessage.content ? cleanFormattingSymbols(responseMessage.content) : '',
-          tool_calls: [toolCall]
-        });
-
-        try {
-          // Извлекаем аргументы и вызываем функцию
-          const args = JSON.parse(toolCall.function.arguments);
-          console.log('Аргументы функции search_web:', args);
-          const functionResult = await availableFunctions.search_web(args);
-          console.log('Результат функции search_web:', 
-            functionResult ? 'получен (длина: ' + functionResult.length + ')' : 'не получен');
-
-          // Добавляем результат функции как сообщение
-          messages.push({
-            role: 'function',
-            name: 'search_web',
-            content: functionResult || '',
-          });
-
-          // Повторно вызываем API с добавленными результатами
-          const openaiMessagesWithFunctionResults = convertMessagesToOpenAIFormat(messages);
-          console.log('Отправляем сообщения с результатами функции в OpenAI:', 
-            openaiMessagesWithFunctionResults.length + ' сообщений');
-          
-          const secondResponse = await openai.chat.completions.create({
-            model: 'gpt-4o',
-            messages: openaiMessagesWithFunctionResults,
-            temperature: 0.3,
-            max_tokens: 1000,
-          });
-
-          const finalResult = secondResponse.choices[0]?.message?.content || 'Извините, не удалось получить ответ.';
-          console.log('Финальный ответ от OpenAI:', 
-            finalResult ? 'получен (длина: ' + finalResult.length + ')' : 'не получен');
-          return cleanFormattingSymbols(finalResult);
-        } catch (functionError) {
-          console.error('Ошибка при выполнении функции:', functionError);
-          return cleanFormattingSymbols(`Ой! Я попытался найти для тебя эту информацию, но что-то пошло не так. 🤔 Давай попробуем немного по-другому сформулировать вопрос? А пока могу рассказать о других крутых вещах в нашем универе! 🎓✨`);
-        }
-      }
-    }
+    // Функциональность поиска через Tavily была удалена
 
     // Очищаем ответ от символов форматирования перед возвратом
     return responseMessage?.content 

@@ -24,7 +24,7 @@ async function main() {
     console.log('Это запустит разработческий сервер и выполнит инициализацию...');
     
     // Запускаем Next.js с переменной окружения для инициализации RAG
-    const nextProcess = exec('INIT_RAG=true npm run dev', { cwd: projectRoot });
+    const nextProcess = exec('npx cross-env INIT_RAG=true npm run dev', { cwd: projectRoot });
     
     nextProcess.stdout.on('data', (data) => {
       console.log(data);

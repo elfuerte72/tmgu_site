@@ -15,6 +15,55 @@ export interface ExcelContent {
 }
 
 /**
+ * Анализирует структуру Excel-файла и выводит информацию о листах и данных
+ * @param filePath Путь к файлу Excel
+ */
+export async function analyzeExcelFile(filePath: string): Promise<void> {
+  try {
+    // Проверка существования файла
+    if (!fs.existsSync(filePath)) {
+      throw new Error(`Файл не найден: ${filePath}`);
+    }
+
+    // Чтение файла Excel
+    const workbook = XLSX.readFile(filePath);
+    
+    console.log(`\nАнализ файла: ${path.basename(filePath)}`);
+    console.log(`Количество листов: ${workbook.SheetNames.length}`);
+    console.log(`Имена листов: ${workbook.SheetNames.join(', ')}`);
+    
+    // Анализ каждого листа
+    workbook.SheetNames.forEach(sheetName => {
+      console.log(`\n--- Лист: ${sheetName} ---`);
+      const sheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
+      
+      // Фильтрация пустых строк
+      const cleanedData = jsonData.filter(row => row.length > 0 && row.some(cell => cell !== null && cell !== ''));
+      
+      console.log(`Количество строк: ${cleanedData.length}`);
+      
+      if (cleanedData.length > 0) {
+        console.log(`Заголовки (первая строка): ${JSON.stringify(cleanedData[0])}`);
+        
+        // Проверка структуры данных
+        const firstColumn = cleanedData.map(row => row[0]).filter(cell => cell);
+        console.log(`Уникальные значения в первом столбце (возможные темы): ${JSON.stringify([...new Set(firstColumn)])}`);
+        
+        // Выводим первые 3 строки для примера
+        console.log(`Пример данных (первые 3 строки):`);
+        for (let i = 0; i < Math.min(3, cleanedData.length); i++) {
+          console.log(`  Строка ${i+1}: ${JSON.stringify(cleanedData[i])}`);
+        }
+      }
+    });
+    
+  } catch (error) {
+    console.error('Ошибка при анализе Excel файла:', error);
+  }
+}
+
+/**
  * Парсит файл Excel и извлекает текстовое содержимое
  * @param filePath Путь к файлу Excel
  * @returns ExcelContent с структурированным содержимым
@@ -185,12 +234,29 @@ export async function createTopicBasedChunks(filePath: string): Promise<{text: s
     const content = await parseExcelFile(filePath);
     const chunks: {text: string, metadata: {source: string, sheet: string}}[] = [];
     
+    console.log(`Найдено ${content.sheets.length} листов в Excel-файле`);
+    console.log(`Листы: ${content.sheets.map(s => s.name).join(', ')}`);
+    
     // Обрабатываем каждый лист как отдельный источник
     for (const sheet of content.sheets) {
+      console.log(`Обработка листа: ${sheet.name}`);
+      
       // Определяем, есть ли явные заголовки или темы
       const data = sheet.data;
       
-      if (data.length === 0) continue;
+      if (data.length === 0) {
+        console.log(`Лист ${sheet.name} пуст, пропускаем`);
+        continue;
+      }
+      
+      // Добавляем название листа как отдельный чанк для улучшения поиска
+      chunks.push({
+        text: `# ${sheet.name}\nИнформация о поступлении в ТюмГУ - ${sheet.name}`,
+        metadata: {
+          source: path.basename(filePath),
+          sheet: sheet.name
+        }
+      });
       
       // Проверка, являются ли первая строка заголовками
       const possibleHeaders = data[0];
@@ -203,17 +269,22 @@ export async function createTopicBasedChunks(filePath: string): Promise<{text: s
       );
       
       if (hasHeaders) {
+        console.log(`Лист ${sheet.name} имеет заголовки`);
+        
         // Группируем данные по разделам, если первый столбец содержит название темы/раздела
-        let currentTopic = '';
+        let currentTopic = sheet.name; // Начинаем с названия листа как темы
         let currentChunk = '';
+        
+        // Добавляем заголовки в текущий чанк
+        currentChunk += `Заголовки: ${possibleHeaders.filter(h => h).join(', ')}\n\n`;
         
         for (let i = 1; i < data.length; i++) {
           const row = data[i];
           
-          // Если первый столбец заполнен, считаем его новой темой
+          // Если первый столбец заполнен, считаем его новой темой или подтемой
           if (row[0] && row[0].trim()) {
             // Если у нас уже есть тема и контент, сохраняем предыдущий чанк
-            if (currentTopic && currentChunk) {
+            if (currentChunk.trim()) {
               chunks.push({
                 text: `## ${currentTopic}\n${currentChunk}`,
                 metadata: {
@@ -242,13 +313,25 @@ export async function createTopicBasedChunks(filePath: string): Promise<{text: s
           }
           
           // Добавляем разделитель для лучшей читаемости
-          if (currentChunk) {
+          if (currentChunk && !currentChunk.endsWith('\n\n')) {
             currentChunk += '\n';
+          }
+          
+          // Если чанк стал слишком большим, сохраняем его и начинаем новый
+          if (currentChunk.length > 1000) {
+            chunks.push({
+              text: `## ${currentTopic}\n${currentChunk}`,
+              metadata: {
+                source: path.basename(filePath),
+                sheet: sheet.name
+              }
+            });
+            currentChunk = '';
           }
         }
         
         // Добавляем последний чанк
-        if (currentTopic && currentChunk) {
+        if (currentChunk.trim()) {
           chunks.push({
             text: `## ${currentTopic}\n${currentChunk}`,
             metadata: {
@@ -258,8 +341,10 @@ export async function createTopicBasedChunks(filePath: string): Promise<{text: s
           });
         }
       } else {
+        console.log(`Лист ${sheet.name} не имеет явных заголовков`);
+        
         // Разбиваем по абзацам, если нет явной структуры
-        let currentChunk = '';
+        let currentChunk = `# ${sheet.name}\n`;
         let lineCount = 0;
         
         for (const row of data) {
@@ -277,14 +362,14 @@ export async function createTopicBasedChunks(filePath: string): Promise<{text: s
                   sheet: sheet.name
                 }
               });
-              currentChunk = '';
+              currentChunk = `# ${sheet.name} (продолжение)\n`;
               lineCount = 0;
             }
           }
         }
         
         // Добавляем последний чанк
-        if (currentChunk) {
+        if (currentChunk.length > sheet.name.length + 5) { // Проверяем, что в чанке есть что-то кроме заголовка
           chunks.push({
             text: currentChunk,
             metadata: {
@@ -296,6 +381,7 @@ export async function createTopicBasedChunks(filePath: string): Promise<{text: s
       }
     }
     
+    console.log(`Создано ${chunks.length} чанков из Excel файла`);
     return chunks;
   } catch (error) {
     console.error('Ошибка при создании тематических чанков из Excel файла:', error);
